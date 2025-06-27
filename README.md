@@ -2,7 +2,7 @@
 
 Analysis and simulation code accompanying the article:
 
-Karimian, A., Roberts, M.J., De Weerd, P., & Senden, M. (n.d.). Gamma Synchrony Mediates Figure Ground Perception. *Manuscript submitted*.
+Karimian, A., Roberts, M.J., De Weerd, P., & Senden, M. (2025). **Gamma Synchrony Mediates Figure Ground Perception**. *eLife* **14**:RP105482. [https://doi.org/10.7554/eLife.105482.1](https://doi.org/10.7554/eLife.105482.1)
 
 ## Abstract
 Gamma synchrony is ubiquitous in visual cortex, but whether it contributes to perceptual grouping remains contentious based on observations that gamma frequency is not consistent across stimulus features and that gamma synchrony depends on distances between image elements. These stimulus 
