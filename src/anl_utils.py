@@ -306,7 +306,7 @@ def convert_to_frequency(omega):
     return omega / (2 * np.pi)
 
 
-def compute_firing_rate(state_variables, time_step):
+def compute_firing_rate(state_variables, time_index, time_step):
     """
     Compute the firing rate from state variables (i.e., of each oscillator per time step).
 
@@ -314,6 +314,8 @@ def compute_firing_rate(state_variables, time_step):
     ----------
     state_variables : array_like
         The state variables of the oscillators.
+    time_index : slice
+        The index of time points to consider for the firing rate calculation.
     time_step : float
         The time step of the simulation.
 
@@ -322,6 +324,6 @@ def compute_firing_rate(state_variables, time_step):
     array_like
         The firing rate in Hz of each oscillator.
     """
-    angular_frequency = np.diff(state_variables,
+    angular_frequency = np.diff(state_variables[time_index],
                                 axis=0).mean(axis=0) / time_step
     return convert_to_frequency(angular_frequency)
