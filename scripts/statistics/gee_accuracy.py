@@ -8,9 +8,10 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 
 from src.anl_utils import load_data, get_session_data
+from src.stat_utils import extract_pvals
 
 
-def is_significant(results, variable, cutoff=0.05):
+def is_significant(corrected_pvals, variable, cutoff=0.05):
     """
     Check if a variable is significant.
 
@@ -28,9 +29,7 @@ def is_significant(results, variable, cutoff=0.05):
     significant : bool
         True if the variable is significant, False otherwise.
     """
-    # Use Wald test p-value
-    pvalue = results.wald_test(variable, scalar=True).pvalue
-    return pvalue < cutoff
+    return corrected_pvals[variable] < cutoff
 
 
 if __name__ == '__main__':
@@ -80,7 +79,9 @@ if __name__ == '__main__':
     with open('results/statistics/gee_full.pkl', 'wb') as f:
         pickle.dump(results_full, f)
 
-    if is_significant(results_full, 'SessionID:ContrastHeterogeneity'):
+    corrected_pvals = extract_pvals(results_full)
+
+    if is_significant(corrected_pvals, 'SessionID:ContrastHeterogeneity'):
         # Simple effects of contrast heterogeneity for each session
         for session in range(1, 9):
             session_data = get_session_data(data, session)
@@ -97,7 +98,7 @@ if __name__ == '__main__':
                     'wb') as f:
                 pickle.dump(results, f)
 
-    if is_significant(results_full, 'SessionID:GridCoarseness'):
+    if is_significant(corrected_pvals, 'SessionID:GridCoarseness'):
         # Simple effects of grid coarseness for each session
         for session in range(1, 9):
             session_data = get_session_data(data, session)
