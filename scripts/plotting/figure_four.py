@@ -94,29 +94,3 @@ for session in range(figure_parameters['model']['num_sessions']):
                     bounds=figure_parameters['model']['bounds'],
                     colormap=cmap,
                     filename=filename)
-
-# Transfer session results
-data = np.load('results/empirical/transfer_model_comparison.npz')
-dAIC = data['delta_AIC']
-session = np.arange(1, figure_parameters['data']['num_sessions'])
-
-labels = figure_parameters['transfer']['labels']
-fontsizes = figure_parameters['general']['fontsizes'][:3]
-fill = (figure_parameters['transfer']['fill']['colors'],
-        figure_parameters['transfer']['fill']['alpha'],
-        figure_parameters['transfer']['fill']['bounds_x'],
-        figure_parameters['transfer']['fill']['bounds_y'],
-        figure_parameters['transfer']['fill']['labels'],
-        figure_parameters['transfer']['fill']['label_x'],
-        figure_parameters['transfer']['fill']['label_y'])
-
-filename = os.path.join(BASE_PATH, 'bottom_row_transfer')
-plot_dAIC(session,
-          dAIC,
-          figsize=figsize,
-          labels=labels,
-          fontsizes=fontsizes,
-          line_color=figure_parameters['transfer']['line_color'],
-          text_color=figure_parameters['transfer']['text_color'],
-          fill=fill,
-          filename=filename)
