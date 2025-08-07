@@ -7,7 +7,7 @@ import tomllib
 import numpy as np
 
 from src.sim_utils import initialize_simulation_classes, setup_parallel_processing, generate_stimulus_conditions, generate_time_index
-from src.anl_utils import order_parameter, compute_phase_difference, compute_weighted_locking, expand_matrix
+from src.anl_utils import order_parameter, compute_phase_difference, compute_weighted_locking, expand_matrix, compute_firing_rate
 
 from multiprocessing import Pool, Array
 
@@ -61,7 +61,7 @@ def run_block(block, experiment_parameters, simulation_parameters, num_entries,
     indexing : tuple
         The indexing for synchronization.
     """
-    global arnold_tongue, locking
+    global arnold_tongue, firing_rate, locking
 
     grid_coarseness, contrast_heterogeneity = stimulus_conditions
     model, stimulus_generator = simulation_classes
@@ -71,14 +71,20 @@ def run_block(block, experiment_parameters, simulation_parameters, num_entries,
 
     for condition, (scaling_factor, contrast_range) in enumerate(
             zip(grid_coarseness, contrast_heterogeneity)):
+
         stimulus = stimulus_generator.generate(
             scaling_factor, contrast_range,
             experiment_parameters['mean_contrast'])
+
         model.compute_omega(stimulus.flatten())
         state_variables, _ = model.simulate(simulation_parameters)
         synchronization = np.abs(order_parameter(state_variables))
+        effective_frequency = compute_firing_rate(
+            state_variables, sync_index, simulation_parameters['time_step'])
+
         index = block * experiment_parameters['num_conditions'] + condition
         arnold_tongue[index] = np.mean(synchronization[sync_index])
+        firing_rate[index] = np.mean(effective_frequency)
         lower_index = index * num_entries
         upper_index = lower_index + num_entries
         phase_differences = [
@@ -113,12 +119,17 @@ def run_simulation(experiment_parameters, simulation_parameters, num_entries,
         The Arnold tongue.
     """
 
-    global arnold_tongue, locking
+    global arnold_tongue, firing_rate, locking
 
     # Initialize the Arnold tongue
     arnold_tongue = np.zeros((experiment_parameters['num_blocks'],
                               experiment_parameters['num_conditions']))
     arnold_tongue = Array('d', arnold_tongue.reshape(-1))
+
+    # Initialize the firing rate
+    firing_rate = np.zeros((experiment_parameters['num_blocks'],
+                            experiment_parameters['num_conditions']))
+    firing_rate = Array('d', firing_rate.reshape(-1))
 
     # Initialize the locking
     locking = np.zeros((experiment_parameters['num_blocks'],
@@ -142,11 +153,15 @@ def run_simulation(experiment_parameters, simulation_parameters, num_entries,
         experiment_parameters['num_blocks'],
         experiment_parameters['num_conditions'])
 
+    firing_rate = np.array(firing_rate).reshape(
+        experiment_parameters['num_blocks'],
+        experiment_parameters['num_conditions'])
+
     locking = np.array(locking).reshape(
         experiment_parameters['num_blocks'],
         experiment_parameters['num_conditions'], num_entries)
 
-    return arnold_tongue, locking
+    return arnold_tongue, firing_rate, locking
 
 
 def run_learning(learning_rate, optimal_psychometric, experiment_parameters,
@@ -194,6 +209,10 @@ def run_learning(learning_rate, optimal_psychometric, experiment_parameters,
                                experiment_parameters['num_blocks'],
                                experiment_parameters['num_conditions']))
 
+    firing_rates = np.zeros((experiment_parameters['num_training_sessions'],
+                             experiment_parameters['num_blocks'],
+                             experiment_parameters['num_conditions']))
+
     # Initialize the diagonal
     diagonal = np.ones(model.num_populations)
 
@@ -203,14 +222,15 @@ def run_learning(learning_rate, optimal_psychometric, experiment_parameters,
         simulation_classes = (model, stimulus_generator)
 
         # Run the simulation
-        arnold_tongue, locking = run_simulation(experiment_parameters,
-                                                simulation_parameters,
-                                                num_entries,
-                                                stimulus_conditions,
-                                                simulation_classes, indexing)
+        arnold_tongue, firing_rate, locking = run_simulation(
+            experiment_parameters, simulation_parameters, num_entries,
+            stimulus_conditions, simulation_classes, indexing)
 
         # Add the Arnold tongue of the session
         arnold_tongues[session] = arnold_tongue
+
+        # Add the firing rate of the session
+        firing_rates[session] = firing_rate
 
         # Compute the weighted locking and update the coupling
         weighted_locking = compute_weighted_locking(
@@ -220,7 +240,7 @@ def run_learning(learning_rate, optimal_psychometric, experiment_parameters,
         weighted_locking = expand_matrix(weighted_locking, diagonal)
         model.update_coupling(weighted_locking)
 
-    return arnold_tongues
+    return arnold_tongues, firing_rates
 
 
 if __name__ == '__main__':
@@ -256,10 +276,10 @@ if __name__ == '__main__':
     indexing = generate_time_index(simulation_parameters)
 
     # Run learning simulation
-    arnold_tongues = run_learning(learning_rate, optimal_psychometric,
-                                  experiment_parameters, simulation_parameters,
-                                  num_entries, stimulus_conditions,
-                                  simulation_classes, indexing)
+    arnold_tongues, firing_rates = run_learning(
+        learning_rate, optimal_psychometric, experiment_parameters,
+        simulation_parameters, num_entries, stimulus_conditions,
+        simulation_classes, indexing)
 
     # Save the results
     arnold_tongues = arnold_tongues.reshape(
@@ -270,3 +290,12 @@ if __name__ == '__main__':
     file = 'results/simulation/highres_arnold_tongues.npy'
     os.makedirs(os.path.dirname(file), exist_ok=True)
     np.save(file, arnold_tongues)
+
+    firing_rates = firing_rates.reshape(
+        experiment_parameters['num_training_sessions'],
+        experiment_parameters['num_blocks'],
+        experiment_parameters['num_grid_coarseness'],
+        experiment_parameters['num_contrast_heterogeneity'])
+    file = 'results/simulation/highres_firing_rates.npy'
+    os.makedirs(os.path.dirname(file), exist_ok=True)
+    np.save(file, firing_rates)
