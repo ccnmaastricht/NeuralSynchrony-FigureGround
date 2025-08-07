@@ -8,14 +8,13 @@ rule all:
         "results/info/system.toml",
         "results/statistics/gee_full.pkl",
         "results/statistics/mixed_effects_bat_size.pkl",
-         "results/empirical/transfer_model_comparison.npz",
          "results/empirical/learning.csv",
          "results/simulation/parameter_space_exploration.npz",
          "results/simulation/crossval_estimation.npz",
          "results/simulation/learning_simulation.npz",
          "results/simulation/highres_arnold_tongues.npy",
+         "results/simulation/highres_firing_rates.npy",
          "results/figures/figure_two/panel_d.svg",
-         "results/figures/figure_four/bottom_row_transfer.svg",
          "results/figures/figure_five/panel_d.svg"]
 
 rule download_data:
@@ -49,14 +48,6 @@ rule run_behavioral_arnold_tongue:
     shell:
         "python -m scripts.analysis.behavioral_arnold_tongue"
 
-rule run_transfer_session_model_comparison:
-    input:
-        expand("results/empirical/session_{session}/average_bat.npy", session=session_ids)
-    output:
-        "results/empirical/transfer_model_comparison.npz"
-    shell:
-        "python -m scripts.analysis.transfer_session_model_comparison"
-
 rule run_parameter_exploration:
     input:
         expand("results/empirical/session_{session}/average_bat.npy", session=session_ids)
@@ -86,7 +77,8 @@ rule run_high_resolution_simulations:
     input:
         "results/simulation/crossval_estimation.npz"
     output:
-        "results/simulation/highres_arnold_tongues.npy"
+        ["results/simulation/highres_arnold_tongues.npy",
+        "results/simulation/highres_firing_rates.npy"]
     shell:
         "python -m scripts.simulation.high_resolution_simulations"
 
@@ -123,8 +115,7 @@ rule create_figure_three:
 
 rule run_figure_four:
     input:
-        ["results/simulation/highres_arnold_tongues.npy",
-        "results/empirical/transfer_model_comparison.npz"] +
+        "results/simulation/highres_arnold_tongues.npy" +
         expand("results/empirical/session_{session}/average_bat.npy", session=session_ids) +
         expand("results/empirical/session_{session}/continuous_bat.npy", session=session_ids)
     output:
