@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import squareform
-from scipy.integrate import simps
+from scipy.integrate import simpson
 
 
 def load_data(path):
@@ -119,7 +119,8 @@ def compute_size(arnold_tongue, grid_coarseness, contrast_heterogeneity):
         The size of the Arnold tongue.
     """
 
-    return simps(simps(arnold_tongue, contrast_heterogeneity), grid_coarseness)
+    return simpson(simpson(arnold_tongue, contrast_heterogeneity),
+                   grid_coarseness)
 
 
 def condense_matrix(matrix):
