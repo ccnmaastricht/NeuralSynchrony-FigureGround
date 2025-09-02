@@ -1,10 +1,10 @@
 # Increased condition numbers for extended simulations
 mean_contrast = 0.5
 num_training_sessions = 8
-num_blocks = 5 #
-num_conditions = 25 # 900
-num_contrast_heterogeneity = 5  # 30
-num_grid_coarseness = 5 # 30
+num_blocks = 30
+num_conditions =  900
+num_contrast_heterogeneity = 30
+num_grid_coarseness = 30
 min_contrast_heterogeneity = 0.01
 max_contrast_heterogeneity = 1
 min_grid_coarseness = 1
