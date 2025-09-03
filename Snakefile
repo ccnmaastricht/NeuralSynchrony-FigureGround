@@ -9,6 +9,8 @@ rule all:
         "results/statistics/gee_full.pkl",
         "results/statistics/mixed_effects_bat_size.pkl",
          "results/empirical/learning.csv",
+         "results/simulation/first_session_arnold_tongues.npy",
+         "results/simulation/first_session_firing_rates.npy"
          "results/simulation/parameter_space_exploration.npz",
          "results/simulation/crossval_estimation.npz",
          "results/simulation/learning_simulation.npz",
@@ -48,6 +50,13 @@ rule run_behavioral_arnold_tongue:
     shell:
         "python -m scripts.analysis.behavioral_arnold_tongue"
 
+rule run_first_session_simulations:
+    output:
+        ["results/simulation/first_session_arnold_tongues.npy",
+        "results/simulation/first_session_firing_rates.npy"]
+    shell:
+        "python -m scripts.simulation.first_session_simulations"
+
 rule run_parameter_exploration:
     input:
         expand("results/empirical/session_{session}/average_bat.npy", session=session_ids)
@@ -77,8 +86,7 @@ rule run_high_resolution_simulations:
     input:
         "results/simulation/crossval_estimation.npz"
     output:
-        ["results/simulation/highres_arnold_tongues.npy",
-        "results/simulation/highres_firing_rates.npy"]
+        "results/simulation/highres_arnold_tongues.npy"
     shell:
         "python -m scripts.simulation.high_resolution_simulations"
 
