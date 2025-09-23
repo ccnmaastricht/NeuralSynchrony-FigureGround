@@ -7,7 +7,7 @@ import tomllib
 import numpy as np
 
 from src.sim_utils import initialize_simulation_classes, setup_parallel_processing, generate_stimulus_conditions, generate_time_index
-from src.anl_utils import order_parameter, compute_weighted_locking, expand_matrix, compute_firing_rate
+from src.anl_utils import order_parameter
 
 from multiprocessing import Pool, Array
 
@@ -61,7 +61,7 @@ def run_block(block, experiment_parameters, simulation_parameters,
     indexing : tuple
         The indexing for synchronization.
     """
-    global arnold_tongue, firing_rate
+    global arnold_tongue
 
     grid_coarseness, contrast_heterogeneity = stimulus_conditions
     model, stimulus_generator = simulation_classes
@@ -79,12 +79,9 @@ def run_block(block, experiment_parameters, simulation_parameters,
         model.compute_omega(stimulus.flatten())
         state_variables, _ = model.simulate(simulation_parameters)
         synchronization = np.abs(order_parameter(state_variables))
-        effective_frequency = compute_firing_rate(
-            state_variables, sync_index, simulation_parameters['time_step'])
 
         index = block * experiment_parameters['num_conditions'] + condition
         arnold_tongue[index] = np.mean(synchronization[sync_index])
-        firing_rate[index] = np.mean(effective_frequency)
 
 
 def run_simulation(experiment_parameters, simulation_parameters,
@@ -111,17 +108,12 @@ def run_simulation(experiment_parameters, simulation_parameters,
         The Arnold tongue.
     """
 
-    global arnold_tongue, firing_rate
+    global arnold_tongue
 
     # Initialize the Arnold tongue
     arnold_tongue = np.zeros((experiment_parameters['num_blocks'],
                               experiment_parameters['num_conditions']))
     arnold_tongue = Array('d', arnold_tongue.reshape(-1))
-
-    # Initialize the firing rate
-    firing_rate = np.zeros((experiment_parameters['num_blocks'],
-                            experiment_parameters['num_conditions']))
-    firing_rate = Array('d', firing_rate.reshape(-1))
 
     # Run batches of blocks in parallel
     for batch in range(simulation_parameters['num_batches']):
@@ -139,11 +131,7 @@ def run_simulation(experiment_parameters, simulation_parameters,
         experiment_parameters['num_blocks'],
         experiment_parameters['num_conditions'])
 
-    firing_rate = np.array(firing_rate).reshape(
-        experiment_parameters['num_blocks'],
-        experiment_parameters['num_conditions'])
-
-    return arnold_tongue, firing_rate
+    return arnold_tongue
 
 
 if __name__ == '__main__':
@@ -167,10 +155,9 @@ if __name__ == '__main__':
     indexing = generate_time_index(simulation_parameters)
 
     # Run simulation
-    arnold_tongues, firing_rates = run_simulation(experiment_parameters,
-                                                  simulation_parameters,
-                                                  stimulus_conditions,
-                                                  simulation_classes, indexing)
+    arnold_tongues = run_simulation(experiment_parameters,
+                                    simulation_parameters, stimulus_conditions,
+                                    simulation_classes, indexing)
 
     # Save the results
     arnold_tongues = arnold_tongues.reshape(
@@ -180,11 +167,3 @@ if __name__ == '__main__':
     file = 'results/simulation/first_session_arnold_tongues.npy'
     os.makedirs(os.path.dirname(file), exist_ok=True)
     np.save(file, arnold_tongues)
-
-    firing_rates = firing_rates.reshape(
-        experiment_parameters['num_blocks'],
-        experiment_parameters['num_grid_coarseness'],
-        experiment_parameters['num_contrast_heterogeneity'])
-    file = 'results/simulation/first_session_firing_rates.npy'
-    os.makedirs(os.path.dirname(file), exist_ok=True)
-    np.save(file, firing_rates)
