@@ -1,10 +1,10 @@
 import bambi as bmb
 import arviz as az
+import numpy as np
+import pandas as pd
 from scipy.stats import zscore
 from scipy.special import expit
-
 from prettytable import PrettyTable
-from statsmodels.stats.multitest import multipletests
 
 
 def zscore_data(data, columns):
@@ -28,167 +28,6 @@ def zscore_data(data, columns):
     return zscored
 
 
-def create_subject_index(df):
-    """
-    Create a subject index mapping from subject IDs to integer indices.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The input data.
-
-    Returns
-    -------
-    numpy.ndarray
-        An array of subject indices.
-    int
-        The number of subjects.
-    """
-    unique_subjects = df["SubjectID"].unique()
-    num_subjects = len(unique_subjects)
-    id_to_index = {s: i for i, s in enumerate(unique_subjects)}
-    subject_idx = df["SubjectID"].map(id_to_index).to_numpy()
-    return subject_idx, num_subjects
-
-
-def simulate_correct(df, beta_coefficient, predictor, intercept, sdev_beta,
-                     sdev_intercept, subject_index, num_subjects, rng):
-    """
-    Simulates the "Correct" responses for a given set of parameters.
-
-    Parameters
-    ----------
-    df : pandas.DataFrame
-        The input data.
-    beta_coefficient : float
-        The fixed effect coefficient for the predictor.
-    predictor : pandas.Series
-        The predictor variable.
-    intercept : float
-        The fixed effect intercept.
-    sdev_beta : float
-        The standard deviation of the random slopes.
-    sdev_intercept : float
-        The standard deviation of the random intercepts.
-    subject_index : numpy.ndarray
-        The subject index array.
-    num_subjects : int
-        The number of subjects.
-    rng : np.random.Generator
-        The random number generator.
-
-    Returns
-    -------
-    pandas.DataFrame
-        The simulated data with "Correct" responses.
-    """
-
-    # subject-level random effects
-    random_intercepts = rng.normal(0.0, sdev_intercept,
-                                   size=num_subjects)  # random intercepts
-    random_slopes = rng.normal(
-        0.0, sdev_beta,
-        size=num_subjects)  # random slopes for effect of interest
-
-    # linear predictor per trial
-    logit = (intercept + random_intercepts[subject_index] +
-             (beta_coefficient + random_slopes[subject_index]) * predictor)
-
-    probability = expit(logit)
-    y = rng.binomial(1, probability, size=len(probability))
-
-    simulated_df = df.copy()
-    simulated_df["Correct"] = y
-    return simulated_df
-
-
-def fit_and_decide(simulated_data,
-                   formula,
-                   effect_of_interest,
-                   draws=800,
-                   tune=800,
-                   target_accept=0.9,
-                   threshold=0.95):
-    """
-    Fit the model and decide if the effect of interest is "significant" (posterior probability > threshold)
-    
-    Parameters:
-    ----------
-    - simulated_data: The data to fit the model on.
-    - formula: The formula to use for the model.
-    - effect_of_interest: The effect to test for significance.
-    - draws: The number of draws to use for fitting.
-    - tune: The number of tuning steps to use.
-    - target_accept: The target acceptance rate for the sampler.
-    - threshold: The threshold for deciding if the effect is significant.
-
-    Returns:
-    -------
-    - A boolean indicating if the effect of interest is significant.
-    """
-    model = bmb.Model(formula, data=simulated_data, family="bernoulli")
-    idata = model.fit(draws=draws,
-                      tune=tune,
-                      target_accept=target_accept,
-                      progressbar=False)
-
-    beta = idata.posterior[effect_of_interest].values.flatten()
-    return (beta > 0).mean() > threshold
-
-
-def extract_pvals(results, cutoff=0.05, method='holm'):
-    """
-    Extracts p-values from Wald Chi-Square test and corrects for multiple comparisons.
-
-    Parameters
-    ----------
-    results : statsmodels.genmod.generalized_estimating_equations.GEEResultsWrapper
-        The results of the GEE analysis.
-    cutoff : float, optional
-        The cutoff for the p-value. The default is 0.05.
-    method : str, optional
-        The method for multiple testing correction. The default is 'holm'.
-
-    Returns
-    -------
-    dict
-        A dictionary mapping variable names to their corrected p-values.
-    """
-
-    family_of_tests = [
-        name for name in results.model.exog_names if name != 'Intercept'
-    ]
-
-    pvals = []
-    for var in family_of_tests:
-        pvals.append(results.wald_test(var, scalar=True).pvalue)
-    _, corrected = multipletests(pvals, alpha=cutoff, method=method)[:2]
-    return dict(zip(family_of_tests, corrected))
-
-
-def print_wald_chi_square(results):
-    """
-    Prints a table of Wald Chi-Square statistics for each variable in the model.
-
-    Parameters
-    ----------
-    results : statsmodels.regression.linear_model.RegressionResultsWrapper
-        The results of the GEE model.
-    """
-
-    corrected_pvals = extract_pvals(results)
-
-    print('Wald Chi-Square:')
-    table = PrettyTable()
-    table.field_names = ['Variable', 'Chi-Square', 'p-value']
-    for variable, pval in corrected_pvals.items():
-        table.add_row([
-            variable,
-            results.wald_test(variable, scalar=True).statistic, pval
-        ])
-    print(table)
-
-
 def print_sample_info(metadata):
     """
     Prints information about the sample.
@@ -206,3 +45,301 @@ def print_sample_info(metadata):
     print(
         f'{num_samples} particpants ({num_females} female, mean age = {mean_age}, standard deviation = {std_age})'
     )
+
+
+def one_sided_posterior_prob(idata, predictor, direction='greater'):
+    """Calculate the one-sided posterior probability that the samples are greater than zero."""
+
+    beta = idata.posterior[predictor].values.flatten()
+    if direction == 'greater':
+        prob = np.mean(beta > 0)
+    elif direction == 'less':
+        prob = np.mean(beta < 0)
+    else:
+        raise ValueError("Direction must be 'greater' or 'less'.")
+    return prob
+
+
+def odds_ratio_summary(idata, predictor):
+    """Calculate the odds ratio summary statistics for a given predictor."""
+    beta = idata.posterior[predictor].values.flatten()
+    or_mean = np.exp(beta).mean()
+    or_low = np.percentile(np.exp(beta), 2.5)
+    or_high = np.percentile(np.exp(beta), 97.5)
+    return or_mean, or_low, or_high
+
+
+def posterior_table(idata, predictors, directions):
+    """Summarize the model by calculating posterior probabilities for each predictor."""
+    table = PrettyTable()
+    table.field_names = ["Predictor", "direction", "P"]
+
+    for predictor, direction in zip(predictors, directions):
+        prob = one_sided_posterior_prob(idata, predictor, direction)
+        table.add_row([predictor, direction, f"{prob:.3f}"])
+
+    return table
+
+
+def OR_table(idata, predictors):
+    """Summarize the model by calculating posterior probabilities and odds ratios for each predictor."""
+    table = PrettyTable()
+    table.field_names = ["Predictor", "Mean", "Lower (2.5%)", "Upper (97.5%)"]
+
+    for predictor in predictors:
+        or_mean, or_low, or_high = odds_ratio_summary(idata, predictor)
+        table.add_row(
+            [predictor, f"{or_mean:.3f}", f"{or_low:.3f}", f"{or_high:.3f}"])
+
+    return table
+
+
+def draw_posterior(name, idata, draw_index=None):
+    """ 
+    Extract posterior draws for a given variable from the inference data.
+
+    Parameters
+    ----------
+    name : str
+        Name of the variable to extract.
+    idata : arviz.InferenceData
+        Inference data object containing posterior samples.
+    draw_index : int, optional
+        Specific draw index to extract. If None, returns all draws.
+    
+    Returns
+    -------
+    np.ndarray
+        Array of posterior draws for the specified variable.
+    """
+    data_frame = az.extract(idata, var_names=[name]).to_dataframe()
+    values = data_frame.iloc[:, -1].to_numpy()
+    return values if draw_index is None else float(values[draw_index])
+
+
+def simulate_dataset_from_draw(idata,
+                               df,
+                               draw_index,
+                               num_subjects=None,
+                               rng=None):
+    """
+    Simulate a dataset from a specific posterior draw of a fitted model.
+
+    Parameters
+    ----------
+    idata : arviz.InferenceData
+        Inference data object containing posterior samples. 
+    df : pandas.DataFrame
+        Original dataframe with the structure of the data (including SubjectID and predictors).
+    draw_index : int
+        Index of the posterior draw to use for simulation.
+    n_subjects : int, optional
+        Number of subjects to include in the simulated dataset. If None, use all subjects.
+    rng : np.random.Generator, optional
+        Random number generator for reproducibility. If None, a new generator is created.
+    
+    Returns
+    -------
+    pandas.DataFrame
+        Simulated dataset with the same structure as df, including a 'Correct' column with simulated outcomes.
+    dict
+        Dictionary containing the true beta coefficients used in the simulation.
+    """
+    rng = np.random.default_rng() if rng is None else rng
+
+    # Fixed effects at this posterior draw
+    intercept = draw_posterior("Intercept", idata, draw_index)
+    beta_contrast_heterogeneity = draw_posterior("ContrastHeterogeneity",
+                                                 idata, draw_index)
+    beta_grid_coarseness = draw_posterior("GridCoarseness", idata, draw_index)
+    beta_interaction = draw_posterior("ContrastHeterogeneity:GridCoarseness",
+                                      idata, draw_index)
+
+    # Group-level SDs (diagonal approximation; extend to correlated REs if desired)
+    sd_intercept = draw_posterior("1|SubjectID_sigma", idata, draw_index)
+    sd_contrast_heterogeneity = draw_posterior(
+        "ContrastHeterogeneity|SubjectID_sigma", idata, draw_index)
+    sd_grid_coarseness = draw_posterior("GridCoarseness|SubjectID_sigma",
+                                        idata, draw_index)
+    sd_interaction = draw_posterior(
+        "ContrastHeterogeneity:GridCoarseness|SubjectID_sigma", idata,
+        draw_index)
+
+    # Choose subjects (preserve trial structure per chosen subjects)
+    all_subjects = df["SubjectID"].unique().tolist()
+    if num_subjects is None or num_subjects >= len(all_subjects):
+        subjects = all_subjects
+    else:
+        subjects = rng.choice(all_subjects, size=num_subjects,
+                              replace=False).tolist()
+    df_simulated = df[df["SubjectID"].isin(subjects)].copy()
+
+    # Precompute predictors
+    contrast_heterogeneity = df_simulated["ContrastHeterogeneity"].to_numpy()
+    grid_coarseness = df_simulated["GridCoarseness"].to_numpy()
+    interaction = contrast_heterogeneity * grid_coarseness
+
+    # Draw random effects per subject
+    random_effects = {
+        subject:
+        dict(
+            intercept=rng.normal(0, sd_intercept),
+            contrast_heterogeneity=rng.normal(0, sd_contrast_heterogeneity),
+            grid_coarseness=rng.normal(0, sd_grid_coarseness),
+            interaction=rng.normal(0, sd_interaction),
+        )
+        for subject in subjects
+    }
+
+    # Linear predictor and Bernoulli outcomes
+    logits = np.empty(len(df_simulated), dtype=float)
+    subs_vec = df_simulated["SubjectID"].to_numpy()
+    for idx in range(len(df_simulated)):
+        subject = subs_vec[idx]
+        logits[idx] = (
+            intercept + random_effects[subject]["intercept"] +
+            (beta_contrast_heterogeneity +
+             random_effects[subject]["contrast_heterogeneity"]) *
+            contrast_heterogeneity[idx] +
+            (beta_grid_coarseness + random_effects[subject]["grid_coarseness"])
+            * grid_coarseness[idx] +
+            (beta_interaction + random_effects[subject]["interaction"]) *
+            interaction[idx])
+    probabilities = expit(logits)
+    df_simulated["Correct"] = (rng.uniform(size=len(df_simulated))
+                               < probabilities).astype(int)
+    return df_simulated, dict(
+        contrast_heterogeneity=beta_contrast_heterogeneity,
+        grid_coarseness=beta_grid_coarseness,
+        interaction=beta_interaction)
+
+
+def analyze_simulated(df_sim,
+                      true_betas,
+                      prob_thresh=0.95,
+                      draws=1000,
+                      tune=1000,
+                      chains=2,
+                      target_accept=0.85):
+    # Fit lean model
+    model = bmb.Model(
+        "Correct ~ 1 + ContrastHeterogeneity * GridCoarseness + (1 + ContrastHeterogeneity * GridCoarseness | SubjectID)",
+        data=df_sim,
+        family="bernoulli")
+    idata = model.fit(draws=draws,
+                      tune=tune,
+                      chains=chains,
+                      target_accept=target_accept,
+                      progressbar=False)
+
+    # Pull posterior draws for fixed effects
+    posteriors = az.extract(idata,
+                            var_names=[
+                                "ContrastHeterogeneity", "GridCoarseness",
+                                "ContrastHeterogeneity:GridCoarseness"
+                            ]).to_dataframe()
+
+    out = {}
+    for predictor, col in zip(
+        ["contrast_heterogeneity", "grid_coarseness", "interaction"], [
+            "ContrastHeterogeneity", "GridCoarseness",
+            "ContrastHeterogeneity:GridCoarseness"
+        ]):
+        posterior_values = posteriors[col].to_numpy()
+        true_beta = true_betas[predictor]
+
+        # Directional probability in the true direction
+        if true_beta >= 0:
+            directional_probability = float((posterior_values > 0).mean())
+        else:
+            directional_probability = float((posterior_values < 0).mean())
+
+        # Detection criterion: directional prob > 0.95
+        detected = (directional_probability > prob_thresh)
+
+        # Type-S error: detected but mean sign opposite to true sign
+        mean_sign = np.sign(posterior_values.mean())
+        true_sign = np.sign(true_beta) if true_beta != 0 else 0.0
+        type_s = detected and (mean_sign != true_sign)
+
+        # Type-M error (only if detected and true != 0): magnitude exaggeration ratio
+        type_m = np.nan
+        if detected and true_beta != 0:
+            type_m = float(abs(posterior_values.mean()) / abs(true_beta))
+
+        out[f"{predictor}_directional_probability"] = directional_probability
+        out[f"{predictor}_detected"] = float(detected)
+        out[f"{predictor}_typeS"] = float(type_s)
+        out[f"{predictor}_typeM"] = type_m
+        out[f"{predictor}_post_mean"] = float(posterior_values.mean())
+    return out
+
+
+def summarize_design_analysis(df_results):
+    """
+    Summarize the results of the design analysis by calculating mean and median statistics for each number of subjects.
+
+    Parameters
+    ----------
+    df_results : pandas.DataFrame
+        DataFrame containing the results of the design analysis with columns for number of subjects and various statistics.
+    
+    Returns
+    -------
+    pandas.DataFrame
+        Summary DataFrame with mean and median statistics for each number of subjects.
+    """
+
+    summary = df_results.groupby("num_subjects").agg({
+        "contrast_heterogeneity_detected":
+        "mean",
+        "grid_coarseness_detected":
+        "mean",
+        "interaction_detected":
+        "mean",
+        "contrast_heterogeneity_typeS":
+        "mean",
+        "grid_coarseness_typeS":
+        "mean",
+        "interaction_typeS":
+        "mean",
+        "contrast_heterogeneity_typeM":
+        "median",
+        "grid_coarseness_typeM":
+        "median",
+        "interaction_typeM":
+        "median",
+        "contrast_heterogeneity_directional_probability":
+        "mean",
+        "grid_coarseness_directional_probability":
+        "mean",
+        "interaction_directional_probability":
+        "mean",
+    }).rename(
+        columns={
+            "contrast_heterogeneity_detected":
+            "Detected CH",
+            "grid_coarseness_detected":
+            "Detected GC",
+            "interaction_detected":
+            "Detected Interaction",
+            "contrast_heterogeneity_type S":
+            "Type S error CH",
+            "grid_coarseness_typeS":
+            "Type S error GC",
+            "interaction_typeS":
+            "Type S error INT",
+            "contrast_heterogeneity_typeM":
+            "Type M error CH",
+            "grid_coarseness_typeM":
+            "Type M error GC",
+            "interaction_typeM":
+            "Type M error Interaction",
+            "contrast_heterogeneity_directional_probability":
+            "Probability (one-sided) CH",
+            "grid_coarseness_directional_probability":
+            "Probability (one-sided) GC",
+            "interaction_directional_probability":
+            "Probability (one-sided) Interaction",
+        })
+    return summary.round(2)
