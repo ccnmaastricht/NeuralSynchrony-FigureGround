@@ -7,8 +7,10 @@ import os
 import tomllib
 import numpy as np
 import pandas as pd
-import statsmodels.formula.api as smf
+import bambi as bmb
+import arviz as az
 
+from src.stat_utils import zscore_data
 from src.anl_utils import compute_size
 from src.sim_utils import generate_condition_space
 
@@ -104,13 +106,15 @@ def prepare_dataframe(model_sizes, empirical_sizes, experiment_parameters):
     df["model_size"] = model_sizes.reshape(-1)
     df["empirical_size"] = empirical_sizes.reshape(-1)
 
+    df = zscore_data(df, ["model_size", "empirical_size"])
+
     return df
 
 
 def run_mixed_effects_analysis(df, dependent_variable, independent_variable,
                                group_variable, output_path):
     """
-    Run a mixed effects analysis.
+    Run a mixed effects analysis and save the results.
 
     Parameters
     ----------
@@ -125,11 +129,17 @@ def run_mixed_effects_analysis(df, dependent_variable, independent_variable,
     -------
     None
     """
-    md = smf.mixedlm(f"{dependent_variable} ~ {independent_variable}",
-                     df,
-                     groups=df[group_variable])
-    mdf = md.fit()
-    mdf.save(output_path)
+    model = bmb.Model(
+        f"{dependent_variable} ~ {independent_variable} + (1 | {group_variable})",
+        data=df,
+        family="gaussian")
+
+    idata = model.fit(draws=2000,
+                      tune=2000,
+                      target_accept=0.9,
+                      idata_kwargs={"log_likelihood": True},
+                      progressbar=False)
+    az.to_netcdf(idata, output_path)
 
 
 if __name__ == '__main__':
@@ -150,6 +160,5 @@ if __name__ == '__main__':
     df = df[df["session"] > 1]
 
     # Run the mixed effects analysis for size
-    run_mixed_effects_analysis(
-        df, "empirical_size", "model_size", "subject",
-        'results/statistics/mixed_effects_bat_size.pkl')
+    run_mixed_effects_analysis(df, "empirical_size", "model_size", "subject",
+                               'results/statistics/mixed_effects_bat_size.nc')
