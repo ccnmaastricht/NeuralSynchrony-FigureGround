@@ -7,7 +7,7 @@ import tomllib
 import numpy as np
 
 from src.sim_utils import initialize_simulation_classes, setup_parallel_processing, generate_stimulus_conditions, generate_time_index
-from src.anl_utils import order_parameter
+from src.anl_utils import order_parameter, compute_weighted_locking, expand_matrix, compute_firing_rate, convert_to_frequency
 
 from multiprocessing import Pool, Array
 
@@ -61,7 +61,7 @@ def run_block(block, experiment_parameters, simulation_parameters,
     indexing : tuple
         The indexing for synchronization.
     """
-    global arnold_tongue
+    global arnold_tongue, effective_firing_rate, intrinsic_firing_rate
 
     grid_coarseness, contrast_heterogeneity = stimulus_conditions
     model, stimulus_generator = simulation_classes
@@ -77,11 +77,21 @@ def run_block(block, experiment_parameters, simulation_parameters,
             experiment_parameters['mean_contrast'])
 
         model.compute_omega(stimulus.flatten())
+        intrinsic_frequency = convert_to_frequency(model.omega)
+
         state_variables, _ = model.simulate(simulation_parameters)
         synchronization = np.abs(order_parameter(state_variables))
+        effective_frequency = compute_firing_rate(
+            state_variables, sync_index, simulation_parameters['time_step'])
 
         index = block * experiment_parameters['num_conditions'] + condition
         arnold_tongue[index] = np.mean(synchronization[sync_index])
+        effective_firing_rate[index] = np.mean(effective_frequency)
+        intrinsic_firing_rate[index] = np.mean(intrinsic_frequency)
+
+        print(np.mean(synchronization[sync_index]))
+        print(np.mean(intrinsic_frequency))
+        print(np.mean(effective_frequency))
 
 
 def run_simulation(experiment_parameters, simulation_parameters,
@@ -108,12 +118,22 @@ def run_simulation(experiment_parameters, simulation_parameters,
         The Arnold tongue.
     """
 
-    global arnold_tongue
+    global arnold_tongue, effective_firing_rate, intrinsic_firing_rate
 
     # Initialize the Arnold tongue
     arnold_tongue = np.zeros((experiment_parameters['num_blocks'],
                               experiment_parameters['num_conditions']))
     arnold_tongue = Array('d', arnold_tongue.reshape(-1))
+
+    # Initialize the effective firing rate
+    effective_firing_rate = np.zeros((experiment_parameters['num_blocks'],
+                                      experiment_parameters['num_conditions']))
+    effective_firing_rate = Array('d', effective_firing_rate.reshape(-1))
+
+    # Initialize the intrinsic firing rate
+    intrinsic_firing_rate = np.zeros((experiment_parameters['num_blocks'],
+                                      experiment_parameters['num_conditions']))
+    intrinsic_firing_rate = Array('d', intrinsic_firing_rate.reshape(-1))
 
     # Run batches of blocks in parallel
     for batch in range(simulation_parameters['num_batches']):
@@ -131,7 +151,15 @@ def run_simulation(experiment_parameters, simulation_parameters,
         experiment_parameters['num_blocks'],
         experiment_parameters['num_conditions'])
 
-    return arnold_tongue
+    effective_firing_rate = np.array(effective_firing_rate).reshape(
+        experiment_parameters['num_blocks'],
+        experiment_parameters['num_conditions'])
+
+    intrinsic_firing_rate = np.array(intrinsic_firing_rate).reshape(
+        experiment_parameters['num_blocks'],
+        experiment_parameters['num_conditions'])
+
+    return arnold_tongue, effective_firing_rate, intrinsic_firing_rate
 
 
 if __name__ == '__main__':
@@ -155,9 +183,9 @@ if __name__ == '__main__':
     indexing = generate_time_index(simulation_parameters)
 
     # Run simulation
-    arnold_tongues = run_simulation(experiment_parameters,
-                                    simulation_parameters, stimulus_conditions,
-                                    simulation_classes, indexing)
+    arnold_tongues, effective_firing_rates, intrinsic_firing_rates = run_simulation(
+        experiment_parameters, simulation_parameters, stimulus_conditions,
+        simulation_classes, indexing)
 
     # Save the results
     arnold_tongues = arnold_tongues.reshape(
@@ -167,3 +195,19 @@ if __name__ == '__main__':
     file = 'results/simulation/first_session_arnold_tongues.npy'
     os.makedirs(os.path.dirname(file), exist_ok=True)
     np.save(file, arnold_tongues)
+
+    effective_firing_rates = effective_firing_rates.reshape(
+        experiment_parameters['num_blocks'],
+        experiment_parameters['num_grid_coarseness'],
+        experiment_parameters['num_contrast_heterogeneity'])
+    file = 'results/simulation/first_session_effective_firing_rates.npy'
+    os.makedirs(os.path.dirname(file), exist_ok=True)
+    np.save(file, effective_firing_rates)
+
+    intrinsic_firing_rates = intrinsic_firing_rates.reshape(
+        experiment_parameters['num_blocks'],
+        experiment_parameters['num_grid_coarseness'],
+        experiment_parameters['num_contrast_heterogeneity'])
+    file = 'results/simulation/first_session_intrinsic_firing_rates.npy'
+    os.makedirs(os.path.dirname(file), exist_ok=True)
+    np.save(file, intrinsic_firing_rates)

@@ -288,3 +288,43 @@ def compute_weighted_locking(num_conditions, num_blocks, num_entries,
                                            locking[block]).mean(axis=0))
 
     return weighted_locking
+
+
+def convert_to_frequency(omega):
+    """
+    Convert angular frequency to frequency.
+
+    Parameters
+    ----------
+    omega : array_like
+        The angular frequency.
+    
+    Returns
+    -------
+    float
+        The frequency in Hz.
+    """
+    return omega / (2 * np.pi)
+
+
+def compute_firing_rate(state_variables, time_index, time_step):
+    """
+    Compute the firing rate from state variables (i.e., of each oscillator per time step).
+
+    Parameters
+    ----------
+    state_variables : array_like
+        The state variables of the oscillators.
+    time_index : slice
+        The index of time points to consider for the firing rate calculation.
+    time_step : float
+        The time step of the simulation.
+
+    Returns
+    -------
+    array_like
+        The firing rate in Hz of each oscillator.
+    """
+    angular_frequency = np.diff(state_variables[time_index],
+                                axis=0).mean(axis=0) / time_step
+    return convert_to_frequency(angular_frequency)
