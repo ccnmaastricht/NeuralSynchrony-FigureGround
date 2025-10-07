@@ -89,10 +89,6 @@ def run_block(block, experiment_parameters, simulation_parameters,
         effective_firing_rate[index] = np.mean(effective_frequency)
         intrinsic_firing_rate[index] = np.mean(intrinsic_frequency)
 
-        print(np.mean(synchronization[sync_index]))
-        print(np.mean(intrinsic_frequency))
-        print(np.mean(effective_frequency))
-
 
 def run_simulation(experiment_parameters, simulation_parameters,
                    stimulus_conditions, simulation_classes, indexing):
