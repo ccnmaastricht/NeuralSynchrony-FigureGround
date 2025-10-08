@@ -286,8 +286,8 @@ def summarize_design_analysis(df_results):
     
     Returns
     -------
-    pandas.DataFrame
-        Summary DataFrame with mean and median statistics for each number of subjects.
+    pretty_table : PrettyTable
+        A PrettyTable object summarizing the design analysis results.
     """
 
     summary = df_results.groupby("num_subjects").agg({
@@ -342,4 +342,13 @@ def summarize_design_analysis(df_results):
             "interaction_directional_probability":
             "Probability (one-sided) Interaction",
         })
-    return summary.round(2)
+
+    summary = summary.reset_index()
+    summary = summary.rename(columns={"num_subjects": "Num Subjects"})
+
+    table = PrettyTable()
+    table.field_names = summary.columns.tolist()
+    for _, row in summary.iterrows():
+        table.add_row(row.tolist())
+
+    return table
