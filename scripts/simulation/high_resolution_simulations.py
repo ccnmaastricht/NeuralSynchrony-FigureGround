@@ -7,7 +7,7 @@ import tomllib
 import numpy as np
 
 from src.sim_utils import initialize_simulation_classes, setup_parallel_processing, generate_stimulus_conditions, generate_time_index
-from src.anl_utils import order_parameter, compute_phase_difference, compute_weighted_locking, expand_matrix, compute_firing_rate
+from src.anl_utils import order_parameter, compute_phase_difference, compute_weighted_locking, expand_matrix
 
 from multiprocessing import Pool, Array
 
