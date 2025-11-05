@@ -36,7 +36,7 @@ Note that for reasons of reproducibility, the random seed is fixed in the `simul
 ## data
 This directory is an empty placeholder for the data collected and analyzed in the study. The Snakemake workflow of the simulation and analysis components of the study automatically downloads CSV data files from Zenodo and places them in this directory. The data includes human psychophysics data on figure ground segregation in texture stimuli.
 
-Karimian, M., Mark, R., De Weerd, P., & Senden, M. (2024). Human Psychophysics Dataset on Figure Ground Segregation in Texture Stimuli [Data set]. Zenodo. https://doi.org/10.5281/zenodo.10817187
+Karimian, M., Roberts, M.J., De Weerd, P., & Senden, M. (2024). Human Psychophysics Dataset on Figure Ground Segregation in Texture Stimuli [Data set]. Zenodo. https://doi.org/10.5281/zenodo.10817187
 
 ## notebooks
 This directory contains Jupyter notebooks for performing statistical analyses as well as exploring and reporting results, for generating additional figures and supplementary materials.
