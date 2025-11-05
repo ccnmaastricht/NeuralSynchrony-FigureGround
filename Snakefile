@@ -6,8 +6,7 @@ rule all:
     input:
         ["data/Experiment.csv",
         "results/info/system.toml",
-        "results/statistics/gee_full.pkl",
-        "results/statistics/mixed_effects_bat_size.pkl",
+        "results/statistics/mixed_effects_bat_size.nc",
          "results/empirical/learning.csv",
          "results/simulation/first_session_arnold_tongues.npy",
          "results/simulation/first_session_firing_rates.npy"
@@ -30,14 +29,6 @@ rule run_system_info:
         "results/info/system.toml"
     shell:
         "python -m scripts.info.system"
-
-rule run_gee_accuracy:
-    input:
-        "data/Experiment.csv"
-    output:
-        "results/statistics/gee_full.pkl"
-    shell:
-        "python -m scripts.statistics.gee_accuracy"
 
 rule run_behavioral_arnold_tongue:
     input:
@@ -95,7 +86,7 @@ rule test_model_predictions:
         ["results/simulation/learning_simulation.npz"] + 
         expand("results/empirical/session_{session}/individual_bats.npy", session=session_ids)
     output:
-        ["results/statistics/mixed_effects_bat_size.pkl",
+        ["results/statistics/mixed_effects_bat_size.nc",
         "results/empirical/learning.csv"]
     shell:
         "python -m scripts.statistics.quantitative_model_predictions"
