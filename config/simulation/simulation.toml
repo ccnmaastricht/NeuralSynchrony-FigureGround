@@ -1,5 +1,5 @@
 time_step = 0.001
 simulation_time = 1.0
 num_timepoints = 50
-num_cores = 10  # 30
+num_cores = 30
 random_seed = 1709026616
