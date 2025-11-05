@@ -5,6 +5,8 @@ This script creates all panels of the fifth figure of the paper.
 import os
 import pickle
 import tomllib
+import arviz as az
+
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -96,7 +98,7 @@ def compute_corr_mean_error(correlation_fits):
     return mean_corr_fit, error_value
 
 
-def get_intercept_and_slope(picke_file_path):
+def get_intercept_and_slope(arviz_file_path):
     """
     Get the intercept and slope of the mixed effects model.
 
@@ -112,11 +114,10 @@ def get_intercept_and_slope(picke_file_path):
     float
         The slope of the mixed effects model.
     """
-    with open(picke_file_path, 'rb') as f:
-        mixed_effects_model = pickle.load(f)
+    idata = az.from_netcdf(arviz_file_path)
 
-    intercept = mixed_effects_model.params['Intercept']
-    slope = mixed_effects_model.params['model_size']
+    intercept = idata.posterior['Intercept'].mean().item()
+    slope = idata.posterior['model_size'].mean().item()
     return intercept, slope
 
 
@@ -359,7 +360,7 @@ if __name__ == '__main__':
 
     # Get slope and intercept of the mixed effects model
     intercept, slope = get_intercept_and_slope(
-        'results/statistics/mixed_effects_bat_size.pkl')
+        'results/statistics/mixed_effects_bat_size.nc')
 
     mean_model_size, _ = mean_and_sem(df, 'model_size')
     mean_empirical_size, sem_empirical_size = mean_and_sem(

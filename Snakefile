@@ -9,7 +9,7 @@ rule all:
         "results/statistics/mixed_effects_bat_size.nc",
          "results/empirical/learning.csv",
          "results/simulation/first_session_arnold_tongues.npy",
-         "results/simulation/first_session_firing_rates.npy"
+         "results/simulation/first_session_firing_rates.npy",
          "results/simulation/parameter_space_exploration.npz",
          "results/simulation/crossval_estimation.npz",
          "results/simulation/learning_simulation.npz",
@@ -126,7 +126,7 @@ rule run_figure_five:
     input:
         ["results/simulation/learning_simulation.npz",
         "results/empirical/learning.csv",
-        "results/statistics/mixed_effects_bat_size.pkl"] +
+        "results/statistics/mixed_effects_bat_size.nc"] +
         expand("results/empirical/session_{session}/individual_bats.npy", session=session_ids)
     output:
         ["results/figures/figure_five/panel_a.svg",
