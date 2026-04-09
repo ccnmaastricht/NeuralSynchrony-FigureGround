@@ -197,8 +197,9 @@ def plot_model_vs_empirical(mean_model_size,
                  capthick=2)
 
     # Plot the mixed effects model
-    min_x = min(mean_model_size) - 0.1 * min(mean_model_size)
-    max_x = max(mean_model_size) + 0.1 * max(mean_model_size)
+    range_x = max(mean_model_size) - min(mean_model_size)
+    min_x = min(mean_model_size) - 0.1 * range_x
+    max_x = max(mean_model_size) + 0.1 * range_x
     x = np.linspace(min_x, max_x, 100)
     y = intercept + slope * x
     plt.plot(x, y, color='black')
@@ -322,7 +323,7 @@ if __name__ == '__main__':
 
     # Create a bar plot
     fit_barplot(mean_jaccard_fit,
-                sem_jaccard_fit,
+                sem_jaccard_fit * 1.96,  # 95% confidence interval
                 figure_parameters['general']['sessions'],
                 noise_ceiling_jaccard,
                 figsize=figsize,
@@ -367,7 +368,7 @@ if __name__ == '__main__':
         df, 'empirical_size')
 
     plot_model_vs_empirical(mean_model_size, mean_empirical_size,
-                            sem_empirical_size, intercept, slope,
+                            sem_empirical_size * 1.96, intercept, slope,
                             figure_parameters['panels'][3]['labels'],
                             figure_parameters['general']['fontsizes'],
                             figure_parameters['panels'][3]['marker_color'],
